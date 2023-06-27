@@ -285,9 +285,10 @@ export default function LotteryEntrance() {
 
     try {
       // pass the parameters to `verify`
-      console.log('Verify with variables: ', signature, signerAddress, value.myValue);
-      const result = await raffleContract.getSigner(1, signature, raffleAddress);
-      console.log('Verify was: ', result);
+      console.log('Verify with variables: ', signature, signerAddress, value.myValue, chainId);
+      const result = await raffleContract.getSigner('1', signature, raffleAddress, chainId);
+      console.log('Verify Address: ', result);
+      console.log('Verify Address: ', result == signerAddress);
     } catch (err) {
       console.error(err);
     }
