@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ethers } from 'ethers';
 import { useNotification } from 'web3uikit';
 import { FaCrown } from 'react-icons/fa';
+import TimeAgo from 'react-timeago';
 
 export default function LotteryEntrance() {
   const { Moralis, isWeb3Enabled, chainId: chainIdHex, environment } = useMoralis();
@@ -13,14 +14,17 @@ export default function LotteryEntrance() {
   console.log('ContractAddresses: ', contractAddresses);
   const raffleAddress = chainId in contractAddresses ? contractAddresses[chainId][0] : null;
   console.log('RaffleAddress: ', raffleAddress);
+  const [raffleContract, setContract] = useState('');
   const [entranceFee, setEntranceFee] = useState('0');
   const [numPlayers, setNumPlayers] = useState('0');
   const [recentWinner, setRecentWinner] = useState('0');
   const [players, setPlayers] = useState([]);
   const [timeStamp, setTimeStamp] = useState('0');
   const [raffleState, setRaffleState] = useState('0');
-  const [timeLeft, setTimeLeft] = useState("0");
-  let interval = 20;
+  const [timerActive, setTimerActive] = useState(false);
+  let interval = 450;
+
+  const [currentSignature, setCurrentSignature] = useState(false);
 
   const dispatch = useNotification();
 
@@ -71,6 +75,20 @@ export default function LotteryEntrance() {
     functionName: 'getRaffleState',
     params: {},
   });
+
+  // Functions ---------------------------
+
+  // Set Raffel Contract
+  async function updateRaffleContract() {
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    setContract(new ethers.Contract(raffleAddress, abi, provider));
+    // console.log('Setting Raffle Contract -:', raffleContract);
+
+    // const signer = provider.getSigner();
+    // raffleContract = raffleContract.connect(signer);
+  }
+
+  // Update UI
   async function updateUIValues() {
     const entranceFeeFromCall = (await getEntranceFee()).toString();
     const numPlayersFromCall = (await getNumberOfPlayers()).toString();
@@ -85,14 +103,40 @@ export default function LotteryEntrance() {
     setPlayers(allPlayersFromCall);
     setTimeStamp(timeLeftFromCall);
     setRaffleState(raffleStateFromCall);
+    CheckTimerActive();
 
     console.log('Last Timestamp: ', timeLeftFromCall);
     console.log('Last Raffle State: ', raffleStateFromCall);
   }
 
+  // Check if Timer active
+  function CheckTimerActive() {
+    console.log(
+      'Timer: ',
+      players.length,
+      ' - ',
+      raffleState,
+      ' -- ',
+      (parseInt(timeStamp) + interval) * 1000 > Date.now()
+    );
+    const timer = players.length > 0 && raffleState == 0 && (parseInt(timeStamp) + interval) * 1000 > Date.now();
+    setTimerActive(timer);
+  }
+
+  useEffect(() => {
+    const checkingTimer = setInterval(() => {
+      if (timerActive) {
+        CheckTimerActive();
+      }
+    }, 1000);
+    // Cleanup function to clear the interval when the component unmounts
+    return () => clearInterval(checkingTimer);
+  }, []);
+
   // Update UI When isWeb3 is Enabled
   useEffect(() => {
     if (isWeb3Enabled) {
+      updateRaffleContract();
       updateUIValues();
     }
   }, [isWeb3Enabled]);
@@ -173,6 +217,81 @@ export default function LotteryEntrance() {
     });
   };
 
+  // Verify Message
+  const signMessage = async function () {
+    // Define the EIP-712 domain - All properties on a domain are optional
+    const domain = {
+      name: 'Ethereum Lottery',
+      version: '1.0',
+      chainId: chainId, // Replace this with the actual chainId
+      verifyingContract: raffleAddress, // Replace this with the actual contract address
+    };
+    // This JSON object structure describes the "type" of the message
+    const types = {
+      /*
+      EIP712Domain: [
+        { name: 'name', type: 'string' },
+        { name: 'version', type: 'string' },
+        { name: 'chainId', type: 'uint256' },
+        { name: 'verifyingContract', type: 'address' },
+      ],*/
+      Message: [{ name: 'content', type: 'string' }],
+    };
+    // Define the message
+    const input = document.querySelector('#inputSign').value.toString();
+    const value = {
+      content: 'hello',
+    };
+
+    console.log('Sign Message');
+
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const signerAddress = await signer.getAddress();
+    const signature = await signer._signTypedData(domain, types, value);
+    setCurrentSignature(signature);
+
+    console.log('Message:', value['content']);
+    console.log('Signature:', signature);
+
+    console.log('------');
+    return;
+    const recoveredAddress = ethers.utils.verifyTypedData(domain, types, value, signature);
+    console.log(`Recovered address: ${recoveredAddress}`);
+    console.log('The addresses should be the same: ', recoveredAddress == signerAddress);
+  };
+
+  const verifyMessage = async function () {
+    /*if (!currentSignature) {
+      return;
+    }*/
+
+    console.log('Verifying Message');
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+
+    // the expected address
+    const signerAddress = await signer.getAddress();
+
+    // The signature
+    const signature = currentSignature;
+
+    // The Message
+    const input = document.querySelector('#inputVerify').value.toString();
+    const value = {
+      content: 'hello',
+    };
+
+    try {
+      // pass the parameters to `verify`
+      console.log('Verify with variables: ', signature, signerAddress, value.content);
+      const result = await raffleContract.verify(signature, signerAddress, value.content);
+      console.log('Verify was: ', result);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
     <div className="pt-16 text-center">
       <div className="flex flex-col items-center">
@@ -201,7 +320,13 @@ export default function LotteryEntrance() {
                 </div>
                 <div className="pt-4">
                   <div>Time left:</div>
-                  <div>{timeStamp - }</div>
+                  <div>
+                    {!timerActive ? (
+                      <div> -Calculating Winner-</div>
+                    ) : (
+                      <TimeAgo date={new Date((parseInt(timeStamp) + interval) * 1000)} />
+                    )}
+                  </div>
                 </div>
               </>
             ) : (
@@ -241,6 +366,26 @@ export default function LotteryEntrance() {
           )}
         </button>
         <div className="text-xs pt-2"> Only {ethers.utils.formatUnits(entranceFee, 'ether')} ETH </div>
+      </div>
+      <div className="-my-20 space-y-8">
+        <div className="space-x-8">
+          <input type="text" id="inputSign" name="inputSign" className="rounded-sm text-black px-4 w-28"></input>
+          <button
+            className="bg-gold hover:bg-yellow-700 py-2 px-4 rounded font-black uppercase w-28"
+            onClick={signMessage}
+          >
+            Sign
+          </button>
+        </div>
+        <div className="space-x-8">
+          <input type="text" id="inputVerify" name="inputVerify" className=" rounded-sm text-black px-4 w-28"></input>
+          <button
+            className="bg-emerald-600 hover:bg-emerald-500 py-2 px-4 rounded font-black uppercase w-28"
+            onClick={verifyMessage}
+          >
+            Verify
+          </button>
+        </div>
       </div>
       {raffleAddress ? (
         <div className="fixed bottom-0 w-full text-center">
