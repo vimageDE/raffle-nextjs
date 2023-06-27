@@ -222,7 +222,7 @@ export default function LotteryEntrance() {
     // Define the EIP-712 domain - All properties on a domain are optional
     const domain = {
       name: 'Ethereum Lottery',
-      version: '1.0',
+      version: '1',
       chainId: chainId, // Replace this with the actual chainId
       verifyingContract: raffleAddress, // Replace this with the actual contract address
     };
@@ -235,12 +235,12 @@ export default function LotteryEntrance() {
         { name: 'chainId', type: 'uint256' },
         { name: 'verifyingContract', type: 'address' },
       ],*/
-      Message: [{ name: 'content', type: 'string' }],
+      Message: [{ name: 'myValue', type: 'uint256' }],
     };
     // Define the message
     const input = document.querySelector('#inputSign').value.toString();
     const value = {
-      content: 'hello',
+      myValue: 1,
     };
 
     console.log('Sign Message');
@@ -251,8 +251,9 @@ export default function LotteryEntrance() {
     const signature = await signer._signTypedData(domain, types, value);
     setCurrentSignature(signature);
 
-    console.log('Message:', value['content']);
+    console.log('Message:', value['myValue']);
     console.log('Signature:', signature);
+    console.log('Addresse: ', signerAddress);
 
     console.log('------');
     return;
@@ -277,15 +278,15 @@ export default function LotteryEntrance() {
     const signature = currentSignature;
 
     // The Message
-    const input = document.querySelector('#inputVerify').value.toString();
+    // const input = document.querySelector('#inputVerify').value.toString();
     const value = {
-      content: 'hello',
+      myValue: 1,
     };
 
     try {
       // pass the parameters to `verify`
-      console.log('Verify with variables: ', signature, signerAddress, value.content);
-      const result = await raffleContract.verify(signature, signerAddress, value.content);
+      console.log('Verify with variables: ', signature, signerAddress, value.myValue);
+      const result = await raffleContract.getSigner(1, signature, raffleAddress);
       console.log('Verify was: ', result);
     } catch (err) {
       console.error(err);
