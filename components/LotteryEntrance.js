@@ -235,12 +235,12 @@ export default function LotteryEntrance() {
         { name: 'chainId', type: 'uint256' },
         { name: 'verifyingContract', type: 'address' },
       ],*/
-      Message: [{ name: 'myValue', type: 'uint256' }],
+      Message: [{ name: 'myValue', type: 'string' }],
     };
     // Define the message
     const input = document.querySelector('#inputSign').value.toString();
     const value = {
-      myValue: 1,
+      myValue: input, // 'aua',
     };
 
     console.log('Sign Message');
@@ -256,7 +256,7 @@ export default function LotteryEntrance() {
     console.log('Addresse: ', signerAddress);
 
     console.log('------');
-    return;
+
     const recoveredAddress = ethers.utils.verifyTypedData(domain, types, value, signature);
     console.log(`Recovered address: ${recoveredAddress}`);
     console.log('The addresses should be the same: ', recoveredAddress == signerAddress);
@@ -278,15 +278,15 @@ export default function LotteryEntrance() {
     const signature = currentSignature;
 
     // The Message
-    // const input = document.querySelector('#inputVerify').value.toString();
+    const input = document.querySelector('#inputVerify').value.toString();
     const value = {
-      myValue: 1,
+      myValue: input, // 'aua',
     };
 
     try {
       // pass the parameters to `verify`
       console.log('Verify with variables: ', signature, signerAddress, value.myValue, chainId);
-      const result = await raffleContract.getSigner('1', signature, raffleAddress, chainId);
+      const result = await raffleContract.getSigner(value.myValue, signature);
       console.log('Verify Address: ', result);
       console.log('Verify Address: ', result == signerAddress);
     } catch (err) {
@@ -304,7 +304,7 @@ export default function LotteryEntrance() {
           the price pool of all entries.
         </p>
       </div>
-      <div className="flex flex-col items-center pt-20 pb-40">
+      <div className="flex flex-col items-center pt-20 mb-8">
         <div>
           <div className="font-black text-3xl"> Next Jackpot:</div>
           <div className="pt-3 pb-8">
@@ -369,7 +369,7 @@ export default function LotteryEntrance() {
         </button>
         <div className="text-xs pt-2"> Only {ethers.utils.formatUnits(entranceFee, 'ether')} ETH </div>
       </div>
-      <div className="-my-20 space-y-8">
+      <div className="pb-40 space-y-8">
         <div className="space-x-8">
           <input type="text" id="inputSign" name="inputSign" className="rounded-sm text-black px-4 w-28"></input>
           <button
