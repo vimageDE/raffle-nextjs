@@ -1,5 +1,5 @@
 import { useWeb3Contract } from 'react-moralis';
-import { contractAddresses, abi } from '../constants';
+import { contractAddresses, abi, luckyTokenAddresses, abiToken } from '../constants';
 import { useMoralis } from 'react-moralis';
 import { useEffect, useState } from 'react';
 import { ethers } from 'ethers';
@@ -13,8 +13,11 @@ export default function LotteryEntrance() {
   console.log('Chain Idd: ', chainId);
   console.log('ContractAddresses: ', contractAddresses);
   const raffleAddress = chainId in contractAddresses ? contractAddresses[chainId][0] : null;
+  const tokenAddress = chainId in luckyTokenAddresses ? luckyTokenAddresses[chainId][0] : null;
   console.log('RaffleAddress: ', raffleAddress);
+  console.log('LuckyTokenAddress: ', tokenAddress);
   const [raffleContract, setContract] = useState('');
+  const [tokenContract, setTokenContract] = useState('');
   const [entranceFee, setEntranceFee] = useState('0');
   const [numPlayers, setNumPlayers] = useState('0');
   const [recentWinner, setRecentWinner] = useState('0');
@@ -75,13 +78,21 @@ export default function LotteryEntrance() {
     functionName: 'getRaffleState',
     params: {},
   });
+  const { runContractFunction: approveToken } = useWeb3Contract({
+    abi: abiToken,
+    contractAddress: tokenAddress,
+    functionName: 'approve',
+    params: { tokenAddress, entranceFee },
+  });
 
   // Functions ---------------------------
 
   // Set Raffel Contract
-  async function updateRaffleContract() {
+  async function updateContract() {
     const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
     setContract(new ethers.Contract(raffleAddress, abi, provider));
+    setTokenContract(new ethers.Contract(tokenAddress, abiToken, provider).connect(signer));
     // console.log('Setting Raffle Contract -:', raffleContract);
 
     // const signer = provider.getSigner();
@@ -136,7 +147,7 @@ export default function LotteryEntrance() {
   // Update UI When isWeb3 is Enabled
   useEffect(() => {
     if (isWeb3Enabled) {
-      updateRaffleContract();
+      updateContract();
       updateUIValues();
     }
   }, [isWeb3Enabled]);
@@ -217,7 +228,7 @@ export default function LotteryEntrance() {
     });
   };
 
-  // Verify Message
+  // Sign & Verify Message
   const signMessage = async function () {
     // Define the EIP-712 domain - All properties on a domain are optional
     const domain = {
@@ -294,6 +305,19 @@ export default function LotteryEntrance() {
     }
   };
 
+  // Enter Raffle with Lucky Token
+  const approveTransaction = async function () {
+    try {
+      console.log('Approve transfer of tokens');
+      const tx = await tokenContract.approve(raffleAddress, entranceFee);
+      // const tx = await approveToken();
+      const receipt = await tx.wait();
+      console.log('Token Transaction Approved!');
+    } catch (error) {
+      console.error(`Failed to approve tokens: ${error}`);
+    }
+  };
+
   return (
     <div className="pt-16 text-center">
       <div className="flex flex-col items-center">
@@ -351,22 +375,36 @@ export default function LotteryEntrance() {
             <div />
           )} */}
         </div>
-        <button
-          className="bg-gold hover:bg-yellow-700 py-2 px-4 rounded font-black uppercase"
-          onClick={async function () {
-            await enterRaffle({
-              onSuccess: handleTransaction,
-              onError: (error) => console.log(error),
-            });
-          }}
-          disabled={isLoading || isFetching}
-        >
-          {isLoading || isFetching ? (
-            <div className="animate-spin spinner-border h-8 w-8 border-b-2 rounded-full"></div>
-          ) : (
-            <div>Enter Raffle</div>
-          )}
-        </button>
+        <div className="space-x-4">
+          <button
+            className="bg-gold hover:bg-yellow-700 py-2 px-4 rounded font-black uppercase w-40"
+            onClick={async function () {
+              await enterRaffle({
+                onSuccess: handleTransaction,
+                onError: (error) => console.log(error),
+              });
+            }}
+            disabled={isLoading || isFetching}
+          >
+            {isLoading || isFetching ? (
+              <div className="animate-spin spinner-border h-8 w-8 border-b-2 rounded-full"></div>
+            ) : (
+              <div>Enter (ETH)</div>
+            )}
+          </button>
+          <button
+            className="bg-gold hover:bg-yellow-700 py-2 px-4 rounded font-black uppercase w-40"
+            onClick={approveTransaction}
+            disabled={isLoading || isFetching}
+          >
+            {isLoading || isFetching ? (
+              <div className="animate-spin spinner-border h-8 w-8 border-b-2 rounded-full"></div>
+            ) : (
+              <div>Enter (LCY)</div>
+            )}
+          </button>
+        </div>
+
         <div className="text-xs pt-2"> Only {ethers.utils.formatUnits(entranceFee, 'ether')} ETH </div>
       </div>
       <div className="pb-40 space-y-8">
