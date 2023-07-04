@@ -17,6 +17,9 @@ module.exports = {
       colors: {
         gold: '#e9c169',
       },
+      animation: {
+        spin: 'spin 1s linear infinite',
+      },
     },
   },
   plugins: [],

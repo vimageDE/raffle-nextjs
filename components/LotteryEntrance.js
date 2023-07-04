@@ -1,124 +1,64 @@
 import { useWeb3Contract } from 'react-moralis';
 import { contractAddresses, abi, luckyTokenAddresses, abiToken } from '../constants';
 import { useMoralis } from 'react-moralis';
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { ethers } from 'ethers';
 import { useNotification } from 'web3uikit';
+import Modal from 'react-modal';
 import { FaCrown } from 'react-icons/fa';
 import TimeAgo from 'react-timeago';
+import { Contracts } from './Contracts';
+
+const wheelBg = '/luckyWheel1_bg.png';
+const wheelFg = '/luckyWheel1_fg.png';
 
 export default function LotteryEntrance() {
-  const { Moralis, isWeb3Enabled, chainId: chainIdHex, environment } = useMoralis();
-  const chainId = parseInt(chainIdHex);
+  const { Moralis, isWeb3Enabled, environment } = useMoralis();
+  const {
+    chainId,
+    provider,
+    signer,
+    signerAddress,
+    raffleAddress,
+    tokenAddress,
+    raffleContract,
+    setContract,
+    tokenContract,
+    setTokenContract,
+    entranceFee,
+    setEntranceFee,
+    numPlayers,
+    setNumPlayers,
+    recentWinner,
+    setRecentWinner,
+    players,
+    setPlayers,
+    timeStamp,
+    setTimeStamp,
+    raffleState,
+    setRaffleState,
+    currentSignature,
+    setCurrentSignature,
+    updateUIValues,
+    enterRaffle,
+    isLoading,
+    isFetching,
+    approveToken,
+  } = useContext(Contracts);
   console.log('Chain Idd: ', chainId);
-  console.log('ContractAddresses: ', contractAddresses);
-  const raffleAddress = chainId in contractAddresses ? contractAddresses[chainId][0] : null;
-  const tokenAddress = chainId in luckyTokenAddresses ? luckyTokenAddresses[chainId][0] : null;
   console.log('RaffleAddress: ', raffleAddress);
   console.log('LuckyTokenAddress: ', tokenAddress);
-  const [raffleContract, setContract] = useState('');
-  const [tokenContract, setTokenContract] = useState('');
-  const [entranceFee, setEntranceFee] = useState('0');
-  const [numPlayers, setNumPlayers] = useState('0');
-  const [recentWinner, setRecentWinner] = useState('0');
-  const [players, setPlayers] = useState([]);
-  const [timeStamp, setTimeStamp] = useState('0');
-  const [raffleState, setRaffleState] = useState('0');
+  const [eventIds, setEventIds] = useState([]);
   const [timerActive, setTimerActive] = useState(false);
+  const [wheelActiveWin, setWheelActiveWin] = useState(false);
+  const [wheelActiveLose, setWheelActiveLose] = useState(false);
+  const [wheelWin, setWheelWin] = useState(false);
+  const [wheelLose, setWheelLose] = useState(false);
   let interval = 450;
-
-  const [currentSignature, setCurrentSignature] = useState(false);
 
   const dispatch = useNotification();
 
-  const {
-    runContractFunction: enterRaffle,
-    isLoading,
-    isFetching,
-  } = useWeb3Contract({
-    abi: abi,
-    contractAddress: raffleAddress,
-    functionName: 'enterRaffle',
-    params: {},
-    msgValue: entranceFee,
-  });
-  const { runContractFunction: getEntranceFee } = useWeb3Contract({
-    abi: abi,
-    contractAddress: raffleAddress, // specify the networkId
-    functionName: 'getEntranceFee',
-    params: {},
-  });
-  const { runContractFunction: getNumberOfPlayers } = useWeb3Contract({
-    abi: abi,
-    contractAddress: raffleAddress, // specify the networkId
-    functionName: 'getNumberOfPlayers',
-    params: {},
-  });
-  const { runContractFunction: getRecentWinner } = useWeb3Contract({
-    abi: abi,
-    contractAddress: raffleAddress, // specify the networkId
-    functionName: 'getRecentWinner',
-    params: {},
-  });
-  const { runContractFunction: getAllPlayers } = useWeb3Contract({
-    abi: abi,
-    contractAddress: raffleAddress,
-    functionName: 'getAllPlayers',
-    params: {},
-  });
-  const { runContractFunction: getLastTimeStamp } = useWeb3Contract({
-    abi: abi,
-    contractAddress: raffleAddress,
-    functionName: 'getLatestTimeStamp',
-    params: {},
-  });
-  const { runContractFunction: getRaffleState } = useWeb3Contract({
-    abi: abi,
-    contractAddress: raffleAddress,
-    functionName: 'getRaffleState',
-    params: {},
-  });
-  const { runContractFunction: approveToken } = useWeb3Contract({
-    abi: abiToken,
-    contractAddress: tokenAddress,
-    functionName: 'approve',
-    params: { tokenAddress, entranceFee },
-  });
-
   // Functions ---------------------------
-
-  // Set Raffel Contract
-  async function updateContract() {
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const signer = provider.getSigner();
-    setContract(new ethers.Contract(raffleAddress, abi, provider));
-    setTokenContract(new ethers.Contract(tokenAddress, abiToken, provider).connect(signer));
-    // console.log('Setting Raffle Contract -:', raffleContract);
-
-    // const signer = provider.getSigner();
-    // raffleContract = raffleContract.connect(signer);
-  }
-
-  // Update UI
-  async function updateUIValues() {
-    const entranceFeeFromCall = (await getEntranceFee()).toString();
-    const numPlayersFromCall = (await getNumberOfPlayers()).toString();
-    const recentWinnerFromCall = (await getRecentWinner()).toString();
-    const allPlayersFromCall = await getAllPlayers();
-    const timeLeftFromCall = (await getLastTimeStamp()).toString();
-    const raffleStateFromCall = (await getRaffleState()).toString();
-
-    setEntranceFee(entranceFeeFromCall);
-    setNumPlayers(numPlayersFromCall);
-    setRecentWinner(recentWinnerFromCall);
-    setPlayers(allPlayersFromCall);
-    setTimeStamp(timeLeftFromCall);
-    setRaffleState(raffleStateFromCall);
-    CheckTimerActive();
-
-    console.log('Last Timestamp: ', timeLeftFromCall);
-    console.log('Last Raffle State: ', raffleStateFromCall);
-  }
 
   // Check if Timer active
   function CheckTimerActive() {
@@ -144,45 +84,98 @@ export default function LotteryEntrance() {
     return () => clearInterval(checkingTimer);
   }, []);
 
-  // Update UI When isWeb3 is Enabled
-  useEffect(() => {
-    if (isWeb3Enabled) {
-      updateContract();
-      updateUIValues();
-    }
-  }, [isWeb3Enabled]);
-
   // Events
   useEffect(() => {
-    if (!(isWeb3Enabled && raffleAddress)) return;
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const contract = new ethers.Contract(raffleAddress, abi, provider);
+    if (!(isWeb3Enabled && raffleContract && tokenContract)) return;
+
     let cleanupFunc; // To keep a reference to the cleanup function
+    CheckTimerActive();
 
     const fetchAndListen = async () => {
       const currentBlock = await provider.getBlockNumber();
       console.log('CurrentBlock: ', currentBlock);
 
-      contract.on(contract.filters.RaffleEnter(), (player, event) => {
-        if (event.blockNumber <= currentBlock) return;
+      // Raffle Entered Event
+      raffleContract.on(raffleContract.filters.RaffleEnter(), async (player, event) => {
+        currentBlock = await provider.getBlockNumber();
+        if (event.blockNumber < currentBlock) return;
+        if (checkTransactioHashIncluded(event.transactionHash)) return;
         handleRaffleEnter(player);
+        setEventIds((prevEventIds) => [...prevEventIds, event.transactionHash]);
       });
-      contract.on(contract.filters.WinnerPicked(), (winner, amount, event) => {
-        if (event.blockNumber <= currentBlock) return;
+      // Winner Picked Event
+      raffleContract.on(raffleContract.filters.WinnerPicked(), async (winner, amount, event) => {
+        currentBlock = await provider.getBlockNumber();
+        if (event.blockNumber < currentBlock) return;
+        if (checkTransactioHashIncluded(event.transactionHash)) return;
         handleWinner(winner, amount);
+        setEventIds((prevEventIds) => [...prevEventIds, event.transactionHash]);
+      });
+      // Token payment free
+      tokenContract.on(tokenContract.filters.PaymentFree(), async (from, amount, event) => {
+        currentBlock = await provider.getBlockNumber();
+        if (event.blockNumber < currentBlock) return;
+        const signer = provider.getSigner();
+        const signerAddress = await signer.getAddress();
+        if (address != signerAddress) return;
+        if (checkTransactioHashIncluded(event.transactionHash)) return;
+        handleTokensFree();
+        setEventIds((prevEventIds) => [...prevEventIds, event.transactionHash]);
+      });
+      // Token payment double
+      tokenContract.on(tokenContract.filters.PaymentDoubled(), async (address, amount, event) => {
+        currentBlock = await provider.getBlockNumber();
+        console.log(`Double Event ${event.blockNumber} - ${currentBlock} - ${event.transactionHash}`);
+        console.log(`Double Event - SavedEvents: ${eventIds}`);
+        if (event.blockNumber < currentBlock) return;
+        const signer = provider.getSigner();
+        const signerAddress = await signer.getAddress();
+        if (address != signerAddress) return;
+        if (checkTransactioHashIncluded(event.transactionHash)) return;
+        handleTokensDoubled();
       });
 
       // Cleanup function to remove listener
       cleanupFunc = () => {
-        contract.off(contract.filters.RaffleEnter(), handleRaffleEnter);
-        contract.off(contract.filters.WinnerPicked(), handleWinner);
+        raffleContract.off(raffleContract.filters.RaffleEnter());
+        raffleContract.off(raffleContract.filters.WinnerPicked());
+        tokenContract.off(tokenContract.filters.PaymentFree());
+        tokenContract.off(tokenContract.filters.PaymentDoubled());
       };
     };
 
     fetchAndListen();
 
     return () => cleanupFunc && cleanupFunc(); // Returning the cleanup function from useEffect
-  }, [isWeb3Enabled, raffleAddress]);
+  }, [isWeb3Enabled, raffleContract, tokenContract]);
+
+  // Check Event transactionhash
+  const checkTransactioHashIncluded = function (hash) {
+    const eventsLoaded = eventIds.length != 0;
+    let ei;
+    if (!eventsLoaded) {
+      ei = sessionStorage.getItem('eventIds');
+      ei = ei ? JSON.parse(ei) : [];
+    } else {
+      ei = eventIds;
+    }
+
+    const eventHandled = ei.includes(hash);
+    if (eventHandled) {
+      if (!eventsLoaded && ei.length > 0) {
+        setEventIds(ei);
+      }
+      return true;
+    }
+
+    ei.push(hash);
+    console.log(`This should now have saved this hash: ${hash}`);
+    // Save in eventIds State Variable
+    setEventIds(ei);
+    // Save in eventIds SessionVariable
+    sessionStorage.setItem('eventIds', JSON.stringify(ei));
+    return false;
+  };
 
   // Handle Feedback
   const handleTransaction = async function (tx) {
@@ -201,6 +194,7 @@ export default function LotteryEntrance() {
       sendNotification('info', 'User Entered', 'A user has entered the raffle');
     }
     updateUIValues();
+    CheckTimerActive();
   };
   const handleWinner = async function (winner, amount) {
     const currentUser = ethereum.selectedAddress;
@@ -211,10 +205,22 @@ export default function LotteryEntrance() {
       sendNotification('warning', 'You lose...', 'Another player has won the lottery');
     }
     updateUIValues();
+    CheckTimerActive();
   };
   const handleTest = async function () {
     const currentUser = ethereum.selectedAddress;
     console.log('Current user: ', currentUser);
+  };
+  const handleTokensFree = async function (amount) {
+    console.log(`Your Transaction of ${amount} LCY was FREE!`);
+    setWheelActiveWin(true);
+    // Setting the wheel to be inactive after 5 seconds
+    setTimeout(() => setWheelWin(true), 2200);
+  };
+  const handleTokensDoubled = async function (amount) {
+    console.log(`Your Transaction of ${amount} LCY was DOUBLED!`);
+    setWheelActiveLose(true);
+    setTimeout(() => setWheelLose(true), 2200);
   };
 
   // Notification
@@ -318,6 +324,45 @@ export default function LotteryEntrance() {
     }
   };
 
+  const enterRaffletokens = async function () {
+    try {
+      console.log('Enter Lottery with tokens');
+      // Get needed Data
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      const contract = raffleContract.connect(signer);
+      const tokenFactor = await tokenContract.getFactor();
+      console.log(`Token Factor: ${tokenFactor}`);
+
+      // Approve Token transaction
+      try {
+        console.log('approve transfer of Tokens...');
+        const entranceFeeBigInt = BigInt(entranceFee);
+        const tokenFactorBigInt = BigInt(tokenFactor);
+        const tokenAmount = entranceFeeBigInt * tokenFactorBigInt;
+        console.log(`Eth amount: ${entranceFeeBigInt.toString()}`);
+        console.log(`Token amount: ${tokenAmount.toString()}`);
+        const tx_token = await tokenContract.approve(raffleAddress, tokenAmount);
+        const receipt_token = await tx_token.wait();
+        console.log('Token Transaction Approved!');
+      } catch (e) {
+        console.error(`Failed to approve tokens: ${e}`);
+        return;
+      }
+
+      // Token Transaktion
+      console.log(`Signer: ${tokenFactor}`);
+      console.log(`token Factor: ${tokenFactor}`);
+      console.log(`ETH entrance Fee: ${entranceFee}`);
+      const tx = await contract.enterRaffle_Token(entranceFee);
+      // const tx = await raffleContract.enterRaffle_Token(entranceFee);
+      const receipt = await tx.wait();
+      console.log('Raffle Entered with token!');
+    } catch (error) {
+      console.error(`Failed to approve tokens: ${error}`);
+    }
+  };
+
   return (
     <div className="pt-16 text-center">
       <div className="flex flex-col items-center">
@@ -394,7 +439,7 @@ export default function LotteryEntrance() {
           </button>
           <button
             className="bg-gold hover:bg-yellow-700 py-2 px-4 rounded font-black uppercase w-40"
-            onClick={approveTransaction}
+            onClick={enterRaffletokens}
             disabled={isLoading || isFetching}
           >
             {isLoading || isFetching ? (
@@ -426,6 +471,14 @@ export default function LotteryEntrance() {
             Verify
           </button>
         </div>
+        <div>
+          <button className="mx-4" onClick={handleTokensFree}>
+            Test Free
+          </button>
+          <button className="mx-4" onClick={handleTokensDoubled}>
+            Test Doubled
+          </button>
+        </div>
       </div>
       {raffleAddress ? (
         <div className="fixed bottom-0 w-full text-center">
@@ -445,6 +498,40 @@ export default function LotteryEntrance() {
       ) : (
         <div>No Raffle Address Detected</div>
       )}
+      <Modal
+        isOpen={wheelActiveWin || wheelActiveLose}
+        onRequestClose={() => {
+          setWheelActiveWin(false);
+          setWheelActiveLose(false);
+          setWheelLose(false);
+          setWheelWin(false);
+        }}
+        contentLabel="Lucky Wheel"
+        className="bg-opacity-0 mx-auto my-auto"
+        overlayClassName="fixed inset-0 bg-black bg-opacity-90 flex"
+      >
+        <div>
+          <div className="text-center font-black text-3xl">Lucky Token Wheel</div>
+          <div className="w-80 h-80 mx-auto">
+            <div className="w-80 h-80 bg-cover absolute" style={{ backgroundImage: `url(${wheelBg})` }}></div>
+            <div
+              className={`w-80 h-80 bg-cover absolute ${
+                wheelActiveWin ? 'animate-spin-to-minted' : 'animate-spin-to-burned'
+              } `}
+              style={{ backgroundImage: `url(${wheelFg})` }}
+            ></div>
+          </div>
+          {wheelWin || wheelLose ? (
+            wheelActiveWin ? (
+              <div className="text-center text-gold font-black text-3xl">Tokens Refunded!</div>
+            ) : (
+              <div className="text-center text-red-700 font-black text-3xl">Tokens Doubled!</div>
+            )
+          ) : (
+            <div className="text-center text-3xl">...</div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -5,6 +5,26 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes spin-to-minted {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(1530deg); }
+  }
+  
+  @keyframes spin-to-burned {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(1350deg); }
+  }
+  
+  .animate-spin-to-minted {
+    animation: spin-to-minted 2s;
+    animation-fill-mode: forwards;
+  }
+  
+  .animate-spin-to-burned {
+    animation: spin-to-burned 2s;
+    animation-fill-mode: forwards;
+  }
+
 @layer base{
     html {
         @apply text-white;
